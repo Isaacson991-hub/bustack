@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Bustack – Ônibus SP</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#38bdf8">
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    :root {
+      --bg: #020617;
+      --primary: #38bdf8;
+      --secondary: #22d3ee;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      max-width: 430px;
+      margin: auto;
+      font-family: Arial, Segoe UI, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 4px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      color: transparent;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: var(--muted);
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 12px;
+      border-radius: 14px;
+      border: none;
+      font-size: 15px;
+    }
+
+    input {
+      background: #020617;
+      color: var(--text);
+      border: 1px solid #1e293b;
+    }
+
+    button {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: #020617;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .card {
+      background: #020617;
+      padding: 16px;
+      margin-top: 16px;
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.5);
+    }
+
+    .price {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(56,189,248,0.1);
+      border-radius: 12px;
+    }
+
+    .price span {
+      font-weight: bold;
+      color: var(--secondary);
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>🚌 Bustack</h1>
+  <p class="subtitle">Sistema inteligente de transporte urbano</p>
+
+  <input id="destino" placeholder="Digite zona ou bairro (ex: zona sul)">
+  <button onclick="buscar()">🔍 Buscar ônibus</button>
+
+  <div id="lista"></div>
+
+  <script>
+    // Registrar Service Worker (PWA)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+    }
+
+    // Dados simulados (TCC)
+    const onibusSP = [
+      { linha: "4310", bairro: "Zona Norte", horarios: ["06:30","07:00","07:30"] },
+      { linha: "209A", bairro: "Zona Sul", horarios: ["06:40","07:10","07:40"] },
+      { linha: "875P", bairro: "Zona Leste", horarios: ["07:00","07:40","08:20"] }
+    ];
+
+    const tarifaNormal = 4.40;
+    const tarifaEstudante = 2.20;
+
+    function buscar() {
+      const destino = document.getElementById("destino").value.toLowerCase();
+      const lista = document.getElementById("lista");
+      lista.innerHTML = "";
+
+      if (!destino) {
+        alert("Digite o destino");
+        return;
+      }
+
+      const resultados = onibusSP.filter(bus =>
+        bus.bairro.toLowerCase().includes(destino)
+      );
+
+      if (resultados.length === 0) {
+        lista.innerHTML = "<p>Nenhuma linha encontrada.</p>";
+        return;
+      }
+
+      resultados.forEach(bus => {
+        lista.innerHTML += `
+          <div class="card">
+            <h3>🚌 Linha ${bus.linha}</h3>
+            <p>Bairro: ${bus.bairro}</p>
+            <p>Horários: ${bus.horarios.join(", ")}</p>
+
+            <div class="price">
+              <div>Normal<br><span>R$ ${tarifaNormal.toFixed(2)}</span></div>
+              <div>Estudante<br><span>R$ ${tarifaEstudante.toFixed(2)}</span></div>
+            </div>
+          </div>
+        `;
+      });
+    }
+  </script>
+
+</body>
+</html>
