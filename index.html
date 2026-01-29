@@ -2,158 +2,162 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Bustack – Ônibus SP</title>
-
+  <title>Bustack</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#38bdf8">
 
-  <!-- PWA -->
   <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a73e8">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
     :root {
-      --bg: #020617;
-      --primary: #38bdf8;
-      --secondary: #22d3ee;
-      --text: #e5e7eb;
-      --muted: #94a3b8;
+      --bg: #f5f5f5;
+      --card: #ffffff;
+      --text: #000000;
+      --primary: #1a73e8;
     }
 
-    * { box-sizing: border-box; }
+    body.dark {
+      --bg: #121212;
+      --card: #1e1e1e;
+      --text: #ffffff;
+      --primary: #4dabf7;
+    }
 
     body {
       margin: 0;
-      min-height: 100vh;
-      max-width: 430px;
-      margin: auto;
-      font-family: Arial, Segoe UI, sans-serif;
+      font-family: Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
-      padding: 16px;
+      transition: .3s;
     }
 
-    h1 {
+    header {
+      background: var(--primary);
+      color: #fff;
+      padding: 15px;
       text-align: center;
-      margin-bottom: 4px;
-      background: linear-gradient(90deg, var(--primary), var(--secondary));
-      -webkit-background-clip: text;
-      color: transparent;
-    }
-
-    .subtitle {
-      text-align: center;
-      color: var(--muted);
-      margin-bottom: 20px;
-      font-size: 14px;
-    }
-
-    input, button {
-      width: 100%;
-      padding: 14px;
-      margin-top: 12px;
-      border-radius: 14px;
-      border: none;
-      font-size: 15px;
-    }
-
-    input {
-      background: #020617;
-      color: var(--text);
-      border: 1px solid #1e293b;
-    }
-
-    button {
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      color: #020617;
       font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header button {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: #fff;
       cursor: pointer;
     }
 
-    .card {
-      background: #020617;
-      padding: 16px;
-      margin-top: 16px;
-      border-radius: 18px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.5);
-    }
-
-    .price {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 10px;
+    .search {
       padding: 10px;
-      background: rgba(56,189,248,0.1);
-      border-radius: 12px;
+      background: var(--card);
     }
 
-    .price span {
-      font-weight: bold;
-      color: var(--secondary);
+    .search input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 16px;
     }
+
+    #map { height: 300px }
+
+    .routes { padding: 10px }
+
+    .card {
+      background: var(--card);
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.2);
+      cursor: pointer;
+    }
+
+    .card strong { color: var(--primary) }
   </style>
 </head>
 
 <body>
 
-  <h1>🚌 Bustack</h1>
-  <p class="subtitle">Sistema inteligente de transporte urbano</p>
+<header>
+  🚌 Bustack
+  <button onclick="toggleDark()">🌙</button>
+</header>
 
-  <input id="destino" placeholder="Digite zona ou bairro (ex: zona sul)">
-  <button onclick="buscar()">🔍 Buscar ônibus</button>
+<div class="search">
+  <input id="destino" placeholder="Para onde você vai?">
+</div>
 
-  <div id="lista"></div>
+<div id="map"></div>
+<div class="routes" id="routes"></div>
 
-  <script>
-    // Registrar Service Worker (PWA)
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js');
-    }
+<script>
+  // 🌙 Modo escuro
+  function toggleDark() {
+    document.body.classList.toggle("dark");
+    localStorage.setItem("darkMode", document.body.classList.contains("dark"));
+  }
 
-    // Dados simulados (TCC)
-    const onibusSP = [
-      { linha: "4310", bairro: "Zona Norte", horarios: ["06:30","07:00","07:30"] },
-      { linha: "209A", bairro: "Zona Sul", horarios: ["06:40","07:10","07:40"] },
-      { linha: "875P", bairro: "Zona Leste", horarios: ["07:00","07:40","08:20"] }
-    ];
+  if (localStorage.getItem("darkMode") === "true") {
+    document.body.classList.add("dark");
+  }
 
-    const tarifaNormal = 4.40;
-    const tarifaEstudante = 2.20;
+  // 🗺️ Mapa
+  const map = L.map('map').setView([-23.5200,-46.8900],12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    function buscar() {
-      const destino = document.getElementById("destino").value.toLowerCase();
-      const lista = document.getElementById("lista");
-      lista.innerHTML = "";
+  let linhas=[], rotaAtual=null, onibus=null, intervalo=null;
 
-      if (!destino) {
-        alert("Digite o destino");
-        return;
-      }
+  fetch("linhas.json").then(r=>r.json()).then(d=>linhas=d);
 
-      const resultados = onibusSP.filter(bus =>
-        bus.bairro.toLowerCase().includes(destino)
-      );
+  document.getElementById("destino").addEventListener("input",e=>{
+    const v=e.target.value.toLowerCase();
+    const c=document.getElementById("routes");
+    c.innerHTML="";
 
-      if (resultados.length === 0) {
-        lista.innerHTML = "<p>Nenhuma linha encontrada.</p>";
-        return;
-      }
-
-      resultados.forEach(bus => {
-        lista.innerHTML += `
-          <div class="card">
-            <h3>🚌 Linha ${bus.linha}</h3>
-            <p>Bairro: ${bus.bairro}</p>
-            <p>Horários: ${bus.horarios.join(", ")}</p>
-
-            <div class="price">
-              <div>Normal<br><span>R$ ${tarifaNormal.toFixed(2)}</span></div>
-              <div>Estudante<br><span>R$ ${tarifaEstudante.toFixed(2)}</span></div>
-            </div>
-          </div>
+    linhas.filter(l=>l.destino.toLowerCase().includes(v))
+      .forEach(l=>{
+        const card=document.createElement("div");
+        card.className="card";
+        card.innerHTML=`
+          <strong>Linha ${l.linha}</strong><br>
+          ${l.origem} → ${l.destino}<br>
+          ⏱️ ${l.tempo} min | 💰 ${l.preco}
         `;
+        card.onclick=()=>simularOnibus(l);
+        c.appendChild(card);
       });
-    }
-  </script>
+  });
+
+  function simularOnibus(l){
+    if(rotaAtual) map.removeLayer(rotaAtual);
+    if(onibus) map.removeLayer(onibus);
+    if(intervalo) clearInterval(intervalo);
+
+    rotaAtual=L.polyline(l.coords,{color:"blue",weight:5}).addTo(map);
+    map.fitBounds(rotaAtual.getBounds());
+
+    let i=0;
+    onibus=L.marker(l.coords[0]).addTo(map);
+    intervalo=setInterval(()=>{
+      i++;
+      if(i>=l.coords.length){clearInterval(intervalo);return;}
+      onibus.setLatLng(l.coords[i]);
+    },1500);
+  }
+
+  if("serviceWorker"in navigator){
+    navigator.serviceWorker.register("sw.js");
+  }
+</script>
 
 </body>
 </html>
